@@ -1,5 +1,5 @@
 -- ==========================================
--- Qz Pro Sniper System | Final Ultimate Fix
+-- Qz Pro Sniper System | Inspector Edition
 -- ==========================================
 
 local successLib, Rayfield = pcall(function()
@@ -10,7 +10,7 @@ if not successLib or not Rayfield then return end
 
 local Window = Rayfield:CreateWindow({
     Name = "🔥 Qz Pro Sniper | Run a Restaurant",
-    LoadingTitle = "جاري تشغيل نظام القنص...",
+    LoadingTitle = "جاري تشغيل نظام الفحص...",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
 })
@@ -28,7 +28,7 @@ MainTab:CreateToggle({
     Callback = function(Value)
         ToggleStatus = Value
         if Value then
-            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يراقب السوق الآن...", Duration = 3})
+            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يفحص عناصر السوق الآن...", Duration = 3})
         end
     end,
 })
@@ -44,53 +44,54 @@ MainTab:CreateSlider({
     end,
 })
 
--- البحث عن جميع قنوات الاتصال المتاحة في اللعبة لضمان العثور على دالة الشراء
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local network = ReplicatedStorage:WaitForChild("Network", 5)
 
 task.spawn(function()
     while true do
         if ToggleStatus and network then
-            -- جلب السوق
             local marketRemote = network:FindFirstChild("RemoteFunction")
             local success, marketItems = pcall(function()
                 return marketRemote:InvokeServer("GetMarket")
             end)
             
             if success and typeof(marketItems) == "table" then
-                for i, item in pairs(marketItems) do
+                -- إذا كان الجدول يحتوي على عناصر، سنقوم بفحص أول عنصر واظهار محتوياته فوراً
+                for key, item in pairs(marketItems) do
                     if item then
-                        local itemPrice = tonumber(item.Price or item.Cost or 0)
-                        local itemId = item.Id or item.ID or item.UUID or i
-                        
-                        -- إذا كان السعر ضمن الحد المسموح
-                        if itemPrice > 0 and itemPrice <= TargetMaxPrice then
-                            -- تجربة إرسال طلب الشراء عبر كل الـ Remotes المتاحة في الشبكة
-                            for _, remote in pairs(network:GetChildren()) do
-                                pcall(function()
-                                    if remote:IsA("RemoteFunction") then
-                                        remote:InvokeServer("Buy", itemId)
-                                        remote:InvokeServer("BuyItem", itemId)
-                                        remote:InvokeServer("Purchase", itemId)
-                                    elseif remote:IsA("RemoteEvent") then
-                                        remote:FireServer("Buy", itemId)
-                                        remote:FireServer("BuyItem", itemId)
-                                        remote:FireServer("Purchase", itemId)
-                                    end
-                                end)
+                        -- إظهار تفاصيل العنصر كإشعار لنرى المفتاح الصحيح للسعر والمعرف
+                        local infoText = "Key: " .. tostring(key) .. " | Type: " .. typeof(item)
+                        if typeof(item) == "table" then
+                            for k, v in pairs(item) do
+                                infoText = infoText .. " | " .. tostring(k) .. ": " .. tostring(v)
                             end
-                            
-                            Rayfield:Notify({
-                                Title = "⚡ محاولة قنص!",
-                                Content = "تم إرسال أمر شراء لعنصر بسعر: " .. tostring(itemPrice) .. "💎",
-                                Duration = 2,
-                            })
-                            task.wait(0.5)
+                        else
+                            infoText = infoText .. " | Val: " .. tostring(item)
                         end
+                        
+                        Rayfield:Notify({
+                            Title = "🔍 فحص بيانات السوق",
+                            Content = infoText,
+                            Duration = 3,
+                        })
+                        
+                        -- محاولة شراء مباشرة باستخدام المفتاح أو الجدول
+                        pcall(function()
+                            marketRemote:InvokeServer("Buy", key)
+                            marketRemote:InvokeServer("BuyItem", key)
+                        end)
+                        
+                        task.wait(2) -- مهلة بسيطة بين الفحص والاختبار
                     end
                 end
+            else
+                Rayfield:Notify({
+                    Title = "⚠️ تنبيه",
+                    Content = "جدول السوق فارغ أو أن استجابة GetMarket تحتاج لتخصيص.",
+                    Duration = 2,
+                })
             end
         end
-        task.wait(0.5)
+        task.wait(3)
     end
 end)
