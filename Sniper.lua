@@ -1,5 +1,5 @@
 -- ==========================================
--- Qz Pro Sniper System | Category Edition
+-- Qz Pro Sniper System | Universal Auto-Scanner
 -- ==========================================
 
 local successLib, Rayfield = pcall(function()
@@ -10,7 +10,7 @@ if not successLib or not Rayfield then return end
 
 local Window = Rayfield:CreateWindow({
     Name = "🔥 Qz Pro Sniper | Run a Restaurant",
-    LoadingTitle = "جاري تشغيل نظام القنص...",
+    LoadingTitle = "جاري تشغيل الماسح الشامل...",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
 })
@@ -28,7 +28,7 @@ MainTab:CreateToggle({
     Callback = function(Value)
         ToggleStatus = Value
         if Value then
-            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يراقب السوق بالفئات...", Duration = 3})
+            Rayfield:Notify({Title = "تم التفعيل", Content = "الماسح الشامل يعمل الآن...", Duration = 3})
         end
     end,
 })
@@ -50,66 +50,54 @@ local network = ReplicatedStorage:WaitForChild("Network", 5)
 task.spawn(function()
     while true do
         if ToggleStatus and network then
-            local marketRemote = network:FindFirstChild("RemoteFunction")
-            
-            -- تجربة جلب السوق مع تمرير الفئات المستهدفة مباشرة (مثل Basic Stove)
-            local categories = {"Basic Stove", "Titanium Fridge", "Carbon Industrial Fridge"}
-            local marketItems = nil
-            local success = false
-            
-            for _, cat in ipairs(categories) do
-                success, marketItems = pcall(function()
-                    return marketRemote:InvokeServer("GetMarket", cat)
-                end)
-                if success and marketItems and typeof(marketItems) == "table" and next(marketItems) ~= nil then
-                    break
-                end
-                
-                -- تجربة بديلة بالاسم فقط
-                success, marketItems = pcall(function()
-                    return marketRemote:InvokeServer(cat)
-                end)
-                if success and marketItems and typeof(marketItems) == "table" and next(marketItems) ~= nil then
-                    break
-                end
-            end
-            
-            if success and typeof(marketItems) == "table" and next(marketItems) ~= nil then
-                Rayfield:Notify({
-                    Title = "✅ تم العثور على عناصر!",
-                    Content = "جاري فحص الشراء...",
-                    Duration = 2,
-                })
-                
-                for key, item in pairs(marketItems) do
-                    if item then
-                        local itemPrice = tonumber(item.Price or item.Cost or item.Value or 0)
-                        local itemId = item.Id or item.ID or key
+            -- فحص شامل لكل دالة RemoteFunction داخل مجلد Network لمعرفة أيها يعيد جدول السوق
+            for _, remote in pairs(network:GetChildren()) do
+                if remote:IsA("RemoteFunction") then
+                    -- تجربة استدعاءات مختلفة للحصول على البيانات
+                    local tests = {
+                        {""},
+                        {"GetMarket"},
+                        {"GetListings"},
+                        {"Market"},
+                        {remote.Name},
+                        {"Basic Stove"},
+                        {1}
+                    }
+                    
+                    for _, args in ipairs(tests) do
+                        local success, result = pcall(function()
+                            return remote:InvokeServer(unpack(args))
+                        end)
                         
-                        if itemPrice > 0 and itemPrice <= TargetMaxPrice then
-                            -- تنفيذ الشراء
-                            pcall(function()
-                                marketRemote:InvokeServer("Buy", itemId)
-                                marketRemote:InvokeServer("BuyItem", itemId)
-                                marketRemote:InvokeServer("Purchase", itemId)
-                            end)
-                            
-                            Rayfield:Notify({
-                                Title = "🎯 تم الشراء!",
-                                Content = "تم قنص عنصر بسعر: " .. tostring(itemPrice) .. "💎",
-                                Duration = 4,
-                            })
+                        if success and typeof(result) == "table" and next(result) ~= nil then
+                            -- وجدنا الدالة والبيانات الصحيحة!
+                            for key, item in pairs(result) do
+                                if typeof(item) == "table" then
+                                    local itemPrice = tonumber(item.Price or item.Cost or item.Value or 0)
+                                    local itemId = item.Id or item.ID or item.UUID or key
+                                    
+                                    if itemPrice > 0 and itemPrice <= TargetMaxPrice then
+                                        -- محاولة الشراء بنفس الدالة الناجحة
+                                        pcall(function()
+                                            remote:InvokeServer("Buy", itemId)
+                                            remote:InvokeServer("BuyItem", itemId)
+                                            remote:InvokeServer("Purchase", itemId)
+                                            remote:InvokeServer(itemId)
+                                        end)
+                                        
+                                        Rayfield:Notify({
+                                            Title = "🎯 تم اكتشاف وقنص عنصر!",
+                                            Content = "السعر: " .."💎 " .. tostring(itemPrice),
+                                            Duration = 4,
+                                        })
+                                    end
+                                end
+                            end
                         end
                     end
                 end
-            else
-                -- محاولة أخيرة عامة
-                local s2, res2 = pcall(function() return marketRemote:InvokeServer("GetListings") end)
-                if s2 and typeof(res2) == "table" then
-                    -- تفاعل في حال كانت الدالة اسمها GetListings
-                end
             end
         end
-        task.wait(1)
+        task.wait(1.5)
     end
 end)
