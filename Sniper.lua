@@ -1,5 +1,5 @@
 -- ==========================================
--- Qz Pro Sniper System | On-Screen Debug
+-- Qz Pro Sniper System | Final Fix Edition
 -- ==========================================
 
 local successLib, Rayfield = pcall(function()
@@ -28,7 +28,7 @@ MainTab:CreateToggle({
     Callback = function(Value)
         ToggleStatus = Value
         if Value then
-            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يراقب السوق الآن...", Duration = 3})
+            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يراقب السوق ويحاول الشراء...", Duration = 3})
         end
     end,
 })
@@ -44,13 +44,12 @@ MainTab:CreateSlider({
     end,
 })
 
--- نظام المراقبة مع إشعارات الفحص على الشاشة
+-- نظام المراقبة والشراء المطور
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local network = ReplicatedStorage:WaitForChild("Network", 5)
 local marketRemote = network and network:WaitForChild("RemoteFunction", 5)
 
 task.spawn(function()
-    local lastCheckTime = 0
     while true do
         if ToggleStatus and marketRemote then
             local success, marketItems = pcall(function()
@@ -63,47 +62,38 @@ task.spawn(function()
                 end)
             end
             
-            -- تنبيه لتأكيد أن السكربت يفحص السوق حالياً (يظهر مرة كل 5 ثوانٍ لكي لا يزعجك)
-            if tick() - lastCheckTime > 5 then
-                lastCheckTime = tick()
-                if success then
-                    Rayfield:Notify({
-                        Title = "🔍 حالة الفحص",
-                        Content = "تم الاتصال بالسوق بنجاح وجاري المراقبة...",
-                        Duration = 2,
-                    })
-                else
-                    Rayfield:Notify({
-                        Title = "⚠️ تنبيه",
-                        Content = "فشل استجابة دالة السوق من السيرفر.",
-                        Duration = 2,
-                    })
-                end
-            end
-            
             if success and typeof(marketItems) == "table" then
                 for i, item in pairs(marketItems) do
                     if item then
-                        local itemName = item.Name or item.Title or item.ItemName or "عنصر مجهول"
+                        local itemName = item.Name or item.Title or item.ItemName or "عنصر"
                         local itemPrice = tonumber(item.Price or item.Cost or item.Value or 0)
                         local itemId = item.Id or item.ID or item.UUID or i
                         
                         if itemPrice > 0 and itemPrice <= TargetMaxPrice then
                             Rayfield:Notify({
-                                title = "🎯 وجدنا هدفاً!",
+                                Title = "🎯 محاولة شراء!",
                                 Content = tostring(itemName) .. " بسعر " .. tostring(itemPrice) .. "💎",
-                                Duration = 4,
+                                Duration = 3,
                             })
                             
-                            -- محاولة الشراء
+                            -- تجربة عدة طرق مختلفة لتنفيذ أمر الشراء في السيرفر
+                            pcall(function()
+                                return marketRemote:InvokeServer("Buy", itemId)
+                            end)
                             pcall(function()
                                 return marketRemote:InvokeServer("BuyItem", itemId)
+                            end)
+                            pcall(function()
+                                return marketRemote:InvokeServer(itemId)
+                            end)
+                            pcall(function()
+                                return marketRemote:InvokeServer("Purchase", itemId, itemPrice)
                             end)
                         end
                     end
                 end
             end
         end
-        task.wait(1.5)
+        task.wait(0.8)
     end
 end)
