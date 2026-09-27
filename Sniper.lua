@@ -1,5 +1,5 @@
 -- ==========================================
--- Qz Pro Sniper System | Universal Auto-Scanner
+-- Qz Pro Sniper | Instant Event Listener
 -- ==========================================
 
 local successLib, Rayfield = pcall(function()
@@ -10,25 +10,25 @@ if not successLib or not Rayfield then return end
 
 local Window = Rayfield:CreateWindow({
     Name = "🔥 Qz Pro Sniper | Run a Restaurant",
-    LoadingTitle = "جاري تشغيل الماسح الشامل...",
+    LoadingTitle = "جاري تشغيل القنص اللحظي...",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
 })
 
 local MainTab = Window:CreateTab("الرئيسية", 4483362458)
-MainTab:CreateSection("إعدادات القنص")
+MainTab:CreateSection("إعدادات القنص اللحظي")
 
 local ToggleStatus = false
 local TargetMaxPrice = 6
 
 MainTab:CreateToggle({
-    Name = "تفعيل القنص التلقائي",
+    Name = "تفعيل القنص الفوري",
     CurrentValue = false,
     Flag = "SniperActive",
     Callback = function(Value)
         ToggleStatus = Value
         if Value then
-            Rayfield:Notify({Title = "تم التفعيل", Content = "الماسح الشامل يعمل الآن...", Duration = 3})
+            Rayfield:Notify({Title = "جاهز!", Content = "البوت يراقب التدفق اللحظي للسوق...", Duration = 3})
         end
     end,
 })
@@ -47,57 +47,43 @@ MainTab:CreateSlider({
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local network = ReplicatedStorage:WaitForChild("Network", 5)
 
-task.spawn(function()
-    while true do
-        if ToggleStatus and network then
-            -- فحص شامل لكل دالة RemoteFunction داخل مجلد Network لمعرفة أيها يعيد جدول السوق
-            for _, remote in pairs(network:GetChildren()) do
-                if remote:IsA("RemoteFunction") then
-                    -- تجربة استدعاءات مختلفة للحصول على البيانات
-                    local tests = {
-                        {""},
-                        {"GetMarket"},
-                        {"GetListings"},
-                        {"Market"},
-                        {remote.Name},
-                        {"Basic Stove"},
-                        {1}
-                    }
+-- البحث عن أي RemoteEvent يقوم ببث العناصر الجديدة للتحقق الفوري
+if network then
+    for _, remote in pairs(network:GetChildren()) do
+        if remote:IsA("RemoteEvent") then
+            remote.OnClientEvent:Connect(function(action, data)
+                if ToggleStatus and (action == "NewItem" or action == "MarketUpdate" or typeof(data) == "table") then
+                    -- فحص العنصر فور وصوله للبث
+                    local items = data or {}
+                    if typeof(items) ~= "table" then items = {items} end
                     
-                    for _, args in ipairs(tests) do
-                        local success, result = pcall(function()
-                            return remote:InvokeServer(unpack(args))
-                        end)
-                        
-                        if success and typeof(result) == "table" and next(result) ~= nil then
-                            -- وجدنا الدالة والبيانات الصحيحة!
-                            for key, item in pairs(result) do
-                                if typeof(item) == "table" then
-                                    local itemPrice = tonumber(item.Price or item.Cost or item.Value or 0)
-                                    local itemId = item.Id or item.ID or item.UUID or key
+                    for _, item in pairs(items) do
+                        if item and type(item) == "table" then
+                            local price = tonumber(item.Price or item.Cost or 0)
+                            local id = item.Id or item.ID or item.UUID
+                            
+                            if price > 0 and price <= TargetMaxPrice and id then
+                                -- إرسال أمر الشراء فوراً قبل أي شخص آخر
+                                local marketRemote = network:FindFirstChild("RemoteFunction")
+                                if marketRemote then
+                                    pcall(function()
+                                        marketRemote:InvokeServer("BuyItem", id)
+                                    end)
+                                    pcall(function()
+                                        marketRemote:InvokeServer("Buy", id)
+                                    end)
                                     
-                                    if itemPrice > 0 and itemPrice <= TargetMaxPrice then
-                                        -- محاولة الشراء بنفس الدالة الناجحة
-                                        pcall(function()
-                                            remote:InvokeServer("Buy", itemId)
-                                            remote:InvokeServer("BuyItem", itemId)
-                                            remote:InvokeServer("Purchase", itemId)
-                                            remote:InvokeServer(itemId)
-                                        end)
-                                        
-                                        Rayfield:Notify({
-                                            Title = "🎯 تم اكتشاف وقنص عنصر!",
-                                            Content = "السعر: " .."💎 " .. tostring(itemPrice),
-                                            Duration = 4,
-                                        })
-                                    end
+                                    Rayfield:Notify({
+                                        Title = "⚡ تم القنص اللحظي!",
+                                        Content = "سعر العنصر: " .. tostring(price) .. "💎",
+                                        Duration = 4,
+                                    })
                                 end
                             end
                         end
                     end
                 end
-            end
+            end)
         end
-        task.wait(1.5)
     end
-end)
+end
