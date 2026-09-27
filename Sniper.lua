@@ -1,41 +1,26 @@
 -- ==========================================
--- Qz Pro Sniper System | GitHub & Rayfield Edition
+-- Qz Pro Sniper System | On-Screen Debug
 -- ==========================================
 
 local successLib, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 end)
 
-if not successLib or not Rayfield then
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Qz Sniper",
-        Text = "❌ خطأ: فشل تحميل واجهة Rayfield!",
-        Duration = 5
-    })
-    return
-end
+if not successLib or not Rayfield then return end
 
--- إنشاء واجهة التحكم الاحترافية
 local Window = Rayfield:CreateWindow({
     Name = "🔥 Qz Pro Sniper | Run a Restaurant",
-    LoadingTitle = "جاري تشغيل نظام القنص الذكي...",
-    LoadingSubtitle = "by Qz",
-    ConfigurationSaving = {
-        Enabled = false,
-        FolderName = "QzSniperConfig",
-        FileName = "Config"
-    },
+    LoadingTitle = "جاري تشغيل نظام القنص...",
+    ConfigurationSaving = { Enabled = false },
     KeySystem = false,
 })
 
 local MainTab = Window:CreateTab("الرئيسية", 4483362458)
-
 MainTab:CreateSection("إعدادات القنص")
 
 local ToggleStatus = false
-local TargetMaxPrice = 15 -- السعر الافتراضي
+local TargetMaxPrice = 15
 
--- زر التفعيل والتعطيل
 MainTab:CreateToggle({
     Name = "تفعيل القنص التلقائي",
     CurrentValue = false,
@@ -43,46 +28,29 @@ MainTab:CreateToggle({
     Callback = function(Value)
         ToggleStatus = Value
         if Value then
-            Rayfield:Notify({
-                Title = "تم التفعيل",
-                Content = "نظام القنص يعمل الآن في الخلفية!",
-                Duration = 4,
-            })
-        else
-            Rayfield:Notify({
-                Title = "تم الإيقاف",
-                Content = "توقف نظام القنص مؤقتاً.",
-                Duration = 4,
-            })
+            Rayfield:Notify({Title = "تم التفعيل", Content = "البوت يراقب السوق الآن...", Duration = 3})
         end
     end,
 })
 
--- شريط تحديد السعر الأقصى
 MainTab:CreateSlider({
     Name = "الحد الأقصى للسعر (جواهر)",
     Range = {1, 50},
     Increment = 1,
     Suffix = "💎",
     CurrentValue = 15,
-    Flag = "MaxPriceFlag",
     Callback = function(Value)
         TargetMaxPrice = Value
     end,
 })
 
-MainTab:CreateSection("معلومات العناصر")
-MainTab:CreateParagraph({
-    Title = "العناصر المستهدفة:", 
-    Content = "• Basic Stove\n• Titanium Fridge\n• Carbon Industrial Fridge\n• جميع الطاولات والكراسي"
-})
-
--- نظام المراقبة والشراء التلقائي في الخلفية
+-- نظام المراقبة مع إشعارات الفحص على الشاشة
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local network = ReplicatedStorage:WaitForChild("Network", 5)
 local marketRemote = network and network:WaitForChild("RemoteFunction", 5)
 
 task.spawn(function()
+    local lastCheckTime = 0
     while true do
         if ToggleStatus and marketRemote then
             local success, marketItems = pcall(function()
@@ -95,39 +63,47 @@ task.spawn(function()
                 end)
             end
             
+            -- تنبيه لتأكيد أن السكربت يفحص السوق حالياً (يظهر مرة كل 5 ثوانٍ لكي لا يزعجك)
+            if tick() - lastCheckTime > 5 then
+                lastCheckTime = tick()
+                if success then
+                    Rayfield:Notify({
+                        Title = "🔍 حالة الفحص",
+                        Content = "تم الاتصال بالسوق بنجاح وجاري المراقبة...",
+                        Duration = 2,
+                    })
+                else
+                    Rayfield:Notify({
+                        Title = "⚠️ تنبيه",
+                        Content = "فشل استجابة دالة السوق من السيرفر.",
+                        Duration = 2,
+                    })
+                end
+            end
+            
             if success and typeof(marketItems) == "table" then
-                for _, item in pairs(marketItems) do
-                    if item and (item.Name or item.Title) then
-                        local itemName = item.Name or item.Title
-                        local itemPrice = tonumber(item.Price or item.Cost or 0)
-                        local itemCurr = tostring(item.Currency or "Diamonds")
-                        local itemId = tostring(item.Id or item.ID or "")
+                for i, item in pairs(marketItems) do
+                    if item then
+                        local itemName = item.Name or item.Title or item.ItemName or "عنصر مجهول"
+                        local itemPrice = tonumber(item.Price or item.Cost or item.Value or 0)
+                        local itemId = item.Id or item.ID or item.UUID or i
                         
-                        -- الشروط: السعر أقل من أو يساوي المحدّد في الواجهة والعملة جواهر
-                        if itemId ~= "" and itemCurr == "Diamonds" and itemPrice <= TargetMaxPrice then
-                            local purchaseArgs = {
-                                itemId,
-                                itemPrice,
-                                "Diamonds"
-                            }
+                        if itemPrice > 0 and itemPrice <= TargetMaxPrice then
+                            Rayfield:Notify({
+                                title = "🎯 وجدنا هدفاً!",
+                                Content = tostring(itemName) .. " بسعر " .. tostring(itemPrice) .. "💎",
+                                Duration = 4,
+                            })
                             
-                            local buySuccess = pcall(function()
-                                return marketRemote:InvokeServer(unpack(purchaseArgs))
+                            -- محاولة الشراء
+                            pcall(function()
+                                return marketRemote:InvokeServer("BuyItem", itemId)
                             end)
-                            
-                            if buySuccess then
-                                Rayfield:Notify({
-                                    Title = "🔥 تم صيد العنصر بنجاح!",
-                                    Content = tostring(itemName) .. " | السعر: " .. tostring(itemPrice) .. " 💎",
-                                    Duration = 6,
-                                })
-                                task.wait(1)
-                            end
                         end
                     end
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(1.5)
     end
 end)
