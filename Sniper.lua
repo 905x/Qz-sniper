@@ -77,7 +77,7 @@ MainTab:CreateParagraph({
     Content = "• Basic Stove\n• Titanium Fridge\n• Carbon Industrial Fridge\n• جميع الطاولات والكراسي"
 })
 
--- نظام المراقبة والشراء التلقائي في الخلفية (المحدث)
+-- نظام المراقبة والشراء التلقائي في الخلفية
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local network = ReplicatedStorage:WaitForChild("Network", 5)
 local marketRemote = network and network:WaitForChild("RemoteFunction", 5)
@@ -85,12 +85,10 @@ local marketRemote = network and network:WaitForChild("RemoteFunction", 5)
 task.spawn(function()
     while true do
         if ToggleStatus and marketRemote then
-            -- محاولة جلب السوق عبر GetMarket أولاً
             local success, marketItems = pcall(function()
                 return marketRemote:InvokeServer("GetMarket")
             end)
             
-            -- إذا لم تنجح، نجرب الاستدعاء الفارغ
             if not success or not marketItems then
                 success, marketItems = pcall(function()
                     return marketRemote:InvokeServer()
@@ -120,10 +118,10 @@ task.spawn(function()
                             if buySuccess then
                                 Rayfield:Notify({
                                     Title = "🔥 تم صيد العنصر بنجاح!",
-                                    Content = itemName | " | السعر: " .. tostring(itemPrice) .. " 💎",
+                                    Content = tostring(itemName) .. " | السعر: " .. tostring(itemPrice) .. " 💎",
                                     Duration = 6,
                                 })
-                                task.wait(1) -- مهلة لمنع التكرار السريع
+                                task.wait(1)
                             end
                         end
                     end
